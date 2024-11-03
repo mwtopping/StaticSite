@@ -1,6 +1,6 @@
 from textnode import TextType, TextNode, text_node_to_html_node
-from htmlnode import HTMLNode
-from extract_markdown import extract_markdown_links, extract_markdown_images
+from htmlnode import HTMLNode, ParentNode
+from extract_markdown import extract_markdown_links, extract_markdown_images, extract_title
 
 
 
@@ -104,22 +104,30 @@ def markdown_to_blocks(mdown):
 def block_to_block_type(block):
 
     if block[0] == '#':
-        return ("heading", block.lstrip('#'))
+        return ("heading", block.lstrip('# '))
     if block[0:3] == "```" and block[-3:] == "```":
-        return ("code", block.strip('`'))
-    if all([l[0]==">" for l in block.split('\n')]):
-        return ("quote", [l.lstrip('>') for l in block.split('\n')])
+        return ("code", block.strip('` '))
+    if all([l.startswith('>') for l in block.split('\n')]):
+        return ("quote", [l.lstrip('> ') for l in block.split('\n')])
     if all([l[0:2] in ["* ", "- "] for l in block.split('\n')]):
-        return ("unordered_list", [l.lstrip('*-') for l in block.split('\n')])
+        return ("unordered_list", [l.lstrip('*-').lstrip(' ') for l in block.split('\n')])
 
     ol_expected = "".join([l[0:2] for l in block.split('\n')])
     ol_actual = "".join([f"{ii+1}." for ii in range(len(block.split('\n')))])
     if ol_actual == ol_expected:
-        return ("ordered_list", block.split('\n'))
+        return ("ordered_list", [l.lstrip('1234567890. ') for l in block.split('\n')])
     return ("paragraph", block)
 
 
-
+def text_to_children(text):
+    print("Text to children", text)
+    if isinstance(text, list):
+        nodes = []
+        for t in text:
+            nodes.extend(text_to_textnodes(t))
+        return nodes
+    else:
+        return text_to_textnodes(text)
 
 def markdown_to_html_node(markdown):
     blocks = markdown_to_blocks(markdown)
@@ -128,59 +136,72 @@ def markdown_to_html_node(markdown):
     #def __init__(self, tag=None, value=None, children=None, props=None):
     for block in blocks:
         blocktype, blocktexts = block_to_block_type(block)
+        print(blocktype, blocktexts)
         htmlnodes = []
         subtag = None
         match blocktype:
             case "heading":
                 tag = "h1"
-                nodes = text_to_textnodes(blocktexts)
-                htmlnodes = text_node_to_html_node(nodes)
-                htmlnodes = HTMLNode(tag=tag, value=None, children=nodes, props=None)
+                nodes = text_to_children(blocktexts)
+                htmlnodes = [text_node_to_html_node(node) for node in nodes]
+                htmlnodes = ParentNode(tag=tag, children=htmlnodes, props=None)
             case "code":
                 tag = "pre"
                 subtag = "code"
                 if isinstance(blocktexts, list):
                     nodes = []
                     for t in blocktexts:
-                        nodes.extend(text_to_textnodes(t))
+                        nodes.extend(text_to_children(t))
                 else:
-                    nodes = text_to_textnodes(blocktexts)
+                    nodes = text_to_children(blocktexts)
 
-                htmlnodes = text_node_to_html_node(nodes)
+
+                #htmlnodes = text_node_to_html_node(nodes)
+
+                htmlnodes = [text_node_to_html_node(node) for node in nodes]
                 # wrap the code block in pre tags
-                htmlnodes = HTMLNode(tag='code', value=None, children=htmlnodes, props=None)
-                htmlnodes = HTMLNode(tag='pre', value=None, children=htmlnodes, props=None)
+                htmlnodes = ParentNode(tag='code', children=htmlnodes, props=None)
+                htmlnodes = ParentNode(tag='pre', children=htmlnodes, props=None)
             case "quote":
                 tag = "blockquote"
-                nodes = text_to_textnodes(blocktexts)
-                htmlnodes = text_node_to_html_node(nodes)
-                htmlnodes = HTMLNode(tag=tag, value=None, children=nodes, props=None)
+                print("blocktexts", blocktexts)
+                nodes = text_to_children(blocktexts)
+                #htmlnodes = text_node_to_html_node(nodes)
+                print("nodes", nodes)
+                htmlnodes = [text_node_to_html_node(node) for node in nodes]
+                htmlnodes = ParentNode(tag=tag, children=htmlnodes, props=None)
             case "unordered_list":
                 tag = "ul"
                 subtag = "li"
-                nodes = text_to_textnodes(blocktexts)
-                htmlnodes = text_node_to_html_node(nodes)
-                htmlnodes = HTMLNode(tag=subtag, value=None, children=nodes, props=None)
-                htmlnodes = HTMLNode(tag=tag, value=None, children=nodes, props=None)
+                nodes = text_to_children(blocktexts)
+                #htmlnodes = text_node_to_html_node(nodes)
+
+                htmlnodes = [text_node_to_html_node(node) for node in nodes]
+                htmlnodes = [ParentNode(tag=subtag, children=node, props=None) for node in htmlnodes]
+                htmlnodes = ParentNode(tag=tag, children=htmlnodes, props=None)
             case "ordered_list":
                 tag = "ol"
                 subtag = "li"
-                nodes = text_to_textnodes(blocktexts)
-                htmlnodes = text_node_to_html_node(nodes)
-                htmlnodes = HTMLNode(tag=subtag, value=None, children=nodes, props=None)
-                htmlnodes = HTMLNode(tag=tag, value=None, children=nodes, props=None)
+                nodes = text_to_children(blocktexts)
+                #htmlnodes = text_node_to_html_node(nodes)
+                htmlnodes = [text_node_to_html_node(node) for node in nodes]
+                htmlnodes = [ParentNode(tag=subtag, children=node, props=None) for node in htmlnodes]
+                htmlnodes = ParentNode(tag=tag, children=htmlnodes, props=None)
             case "paragraph":
                 tag = "p"
-                nodes = text_to_textnodes(blocktexts)
-                htmlnodes = text_node_to_html_node(nodes)
-                htmlnodes = HTMLNode(tag=tag, value=None, children=nodes, props=None)
+                nodes = text_to_children(blocktexts)
+                #htmlnodes = text_node_to_html_node(nodes)
+                htmlnodes = [text_node_to_html_node(node) for node in nodes]
+                htmlnodes = ParentNode(tag=tag, children=htmlnodes, props=None)
             case _:
                 tag = None
-
-        if len(htmlnodes) > 0:
+        print(htmlnodes)
+        if isinstance(htmlnodes, HTMLNode) or isinstance(htmlnodes, ParentNode):
             blocknodes.append(htmlnodes)        
+        elif isinstance(htmlnodes, list):
+            blocknodes.extend(htmlnodes)        
 
-    finalhtmlnode = HTMLNode(tag="div", value=None, children=blocknodes)
+    finalhtmlnode = ParentNode(tag="div", children=blocknodes)
 #    new_htmlblock = HTMLNode(tag, value, children=children, props)
     return finalhtmlnode
 

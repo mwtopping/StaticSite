@@ -47,6 +47,8 @@ class LeafNode(HTMLNode):
 
 class ParentNode(HTMLNode):
     def __init__(self, children, tag=None, props=None):
+        if not isinstance(children, list):
+            children = [children]
         super().__init__(children=children, tag=tag, props=props, value=None)
 
     def to_html(self):
@@ -60,7 +62,9 @@ class ParentNode(HTMLNode):
             prophtml = ""
         else:
             prophtml = self.props_to_html()
-
+        print("My Children are:")
+        for x in self.children:
+            print(x)
         valuehtml = "".join([s.to_html() for s in self.children])
 
         html = f"<{self.tag}{prophtml}>{valuehtml}</{self.tag}>"
